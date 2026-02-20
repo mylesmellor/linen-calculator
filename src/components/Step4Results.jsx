@@ -24,6 +24,13 @@ export default function Step4Results({
   const hasInventory = grandTotalInStock > 0
 
   const handlePrint = () => window.print()
+  const csvCell = (value) => {
+    const str = String(value ?? '')
+    if (/[",\n]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`
+    }
+    return str
+  }
 
   // --- CSV Export ---
   const handleExportCSV = () => {
@@ -32,7 +39,7 @@ export default function Step4Results({
 
     const rows = activeItems.map((item) => {
       const row = [
-        `"${item}"`,
+        item,
         ...propertyResults.map((pr) => pr.itemResults[item]?.withPar || 0),
         grandTotals[item]?.total || 0,
       ]
@@ -40,7 +47,7 @@ export default function Step4Results({
         const price = unitPrices[item] || 0
         row.push(price.toFixed(2), (grandTotals[item]?.cost || 0).toFixed(2))
       }
-      return row.join(',')
+      return row.map(csvCell).join(',')
     })
 
     // Totals row
@@ -52,9 +59,9 @@ export default function Step4Results({
     if (hasPrices) {
       totalRow.push('', grandTotalCost.toFixed(2))
     }
-    rows.push(totalRow.join(','))
+    rows.push(totalRow.map(csvCell).join(','))
 
-    const csv = [headers.join(','), ...rows].join('\n')
+    const csv = [headers.map(csvCell).join(','), ...rows].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

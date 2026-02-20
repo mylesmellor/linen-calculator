@@ -30,7 +30,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-violet-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm no-print">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -107,6 +107,15 @@ function App() {
                   loadScenario={calc.loadScenario}
                   deleteScenario={calc.deleteScenario}
                   resetToDefaults={calc.resetToDefaults}
+                  currentSnapshot={{
+                    name: calc.scenarioName,
+                    properties: calc.properties,
+                    parLevel: calc.parLevel,
+                    activeItems: calc.activeItems,
+                    customItems: calc.customItems,
+                  }}
+                  unitPrices={calc.unitPrices}
+                  margin={calc.margin}
                 />
               </div>
               <div className="mb-6">
@@ -125,6 +134,7 @@ function App() {
                 parLevel={calc.parLevel}
                 setParLevel={calc.setParLevel}
                 addProperty={calc.addProperty}
+                duplicateProperty={calc.duplicateProperty}
                 removeProperty={calc.removeProperty}
                 updateProperty={calc.updateProperty}
                 onNext={() => goTo(2)}
@@ -150,6 +160,7 @@ function App() {
                 activeItems={calc.activeItems}
                 parLevel={calc.parLevel}
                 updatePropertyItem={calc.updatePropertyItem}
+                updateAllPropertiesItem={calc.updateAllPropertiesItem}
                 calculations={calc.calculations}
                 onPrev={() => goTo(2)}
                 onNext={() => goTo(4)}

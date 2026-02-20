@@ -1,4 +1,4 @@
-import { Plus, Trash2, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, ChevronRight, Copy } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { PAR_LEVELS } from '../data/defaultData'
 
@@ -7,6 +7,7 @@ export default function Step1Properties({
   parLevel,
   setParLevel,
   addProperty,
+  duplicateProperty,
   removeProperty,
   updateProperty,
   onNext,
@@ -74,15 +75,26 @@ export default function Step1Properties({
               <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
                 Property {idx + 1}
               </h3>
-              {properties.length > 1 && (
+              <div className="flex items-center gap-1">
                 <button
-                  onClick={() => removeProperty(property.id)}
-                  className="text-red-400 hover:text-red-600 transition-colors p-1"
-                  aria-label="Remove property"
+                  onClick={() => duplicateProperty(property.id)}
+                  className="text-gray-400 hover:text-primary-600 transition-colors p-1"
+                  aria-label="Duplicate property"
+                  title="Duplicate property"
                 >
-                  <Trash2 size={18} />
+                  <Copy size={17} />
                 </button>
-              )}
+                {properties.length > 1 && (
+                  <button
+                    onClick={() => removeProperty(property.id)}
+                    className="text-red-400 hover:text-red-600 transition-colors p-1"
+                    aria-label="Remove property"
+                    title="Remove property"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

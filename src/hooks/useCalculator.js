@@ -1,8 +1,31 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useLocalStorage } from './useLocalStorage'
 import { DEFAULT_PROPERTIES, DEFAULT_LINEN_ITEMS, createEmptyProperty } from '../data/defaultData'
+import {
+  buildCalculations,
+  toMargin,
+  toNonNegativeInt,
+  toParLevel,
+  toUnitPrice,
+} from '../utils/calculations'
 
-let nextId = 100
+function getNextPropertyId(properties) {
+  const existingIds = new Set(properties.map((p) => String(p.id)))
+  let nextNumericId = 1
+
+  properties.forEach((p) => {
+    const num = Number(p.id)
+    if (Number.isInteger(num) && num >= nextNumericId) {
+      nextNumericId = num + 1
+    }
+  })
+
+  while (existingIds.has(String(nextNumericId))) {
+    nextNumericId += 1
+  }
+
+  return String(nextNumericId)
+}
 
 export function useCalculator() {
   const [properties, setProperties] = useLocalStorage('linen-properties', DEFAULT_PROPERTIES)
@@ -16,10 +39,12 @@ export function useCalculator() {
   const [margin, setMargin] = useLocalStorage('linen-margin', 40)
   const [inventory, setInventory] = useLocalStorage('linen-inventory', {})
   const [orderHistory, setOrderHistory] = useLocalStorage('linen-order-history', [])
+  const setParLevelSafe = useCallback((value) => setParLevel(toParLevel(value)), [setParLevel])
+  const setMarginSafe = useCallback((value) => setMargin(toMargin(value)), [setMargin])
 
   const updateInventory = useCallback(
     (itemName, qty) => {
-      setInventory((prev) => ({ ...prev, [itemName]: qty }))
+      setInventory((prev) => ({ ...prev, [itemName]: toNonNegativeInt(qty) }))
     },
     [setInventory]
   )
@@ -38,7 +63,7 @@ export function useCalculator() {
       setInventory((prev) => {
         const updated = { ...prev }
         Object.entries(orderedItems).forEach(([item, qty]) => {
-          updated[item] = (updated[item] || 0) + qty
+          updated[item] = toNonNegativeInt(updated[item] || 0) + toNonNegativeInt(qty)
         })
         return updated
       })
@@ -57,15 +82,32 @@ export function useCalculator() {
 
   const updateUnitPrice = useCallback(
     (itemName, price) => {
-      setUnitPrices((prev) => ({ ...prev, [itemName]: price }))
+      setUnitPrices((prev) => ({ ...prev, [itemName]: toUnitPrice(price) }))
     },
     [setUnitPrices]
   )
 
   const addProperty = useCallback(() => {
-    const id = String(nextId++)
-    setProperties((prev) => [...prev, createEmptyProperty(id)])
+    setProperties((prev) => [...prev, createEmptyProperty(getNextPropertyId(prev))])
   }, [setProperties])
+
+  const duplicateProperty = useCallback(
+    (id) => {
+      setProperties((prev) => {
+        const source = prev.find((p) => p.id === id)
+        if (!source) return prev
+
+        const duplicated = {
+          ...source,
+          id: getNextPropertyId(prev),
+          name: source.name ? `${source.name} (Copy)` : 'Copied Property',
+          items: { ...source.items },
+        }
+        return [...prev, duplicated]
+      })
+    },
+    [setProperties]
+  )
 
   const removeProperty = useCallback(
     (id) => {
@@ -77,7 +119,11 @@ export function useCalculator() {
   const updateProperty = useCallback(
     (id, field, value) => {
       setProperties((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
+        prev.map((p) => {
+          if (p.id !== id) return p
+          if (field === 'stays') return { ...p, stays: toNonNegativeInt(value) }
+          return { ...p, [field]: value }
+        })
       )
     },
     [setProperties]
@@ -88,9 +134,22 @@ export function useCalculator() {
       setProperties((prev) =>
         prev.map((p) =>
           p.id === propertyId
-            ? { ...p, items: { ...p.items, [itemName]: quantity } }
+            ? { ...p, items: { ...p.items, [itemName]: toNonNegativeInt(quantity) } }
             : p
         )
+      )
+    },
+    [setProperties]
+  )
+
+  const updateAllPropertiesItem = useCallback(
+    (itemName, quantity) => {
+      const safeQuantity = toNonNegativeInt(quantity)
+      setProperties((prev) =>
+        prev.map((p) => ({
+          ...p,
+          items: { ...p.items, [itemName]: safeQuantity },
+        }))
       )
     },
     [setProperties]
@@ -134,87 +193,49 @@ export function useCalculator() {
   )
 
   // Calculations
-  const calculations = useMemo(() => {
-    const propertyResults = properties.map((property) => {
-      const itemResults = {}
-      let propertyTotal = 0
-
-      let propertyCost = 0
-
-      activeItems.forEach((item) => {
-        const perStay = property.items[item] || 0
-        const subtotal = perStay * property.stays
-        const withPar = Math.ceil(subtotal * parLevel)
-        const price = unitPrices[item] || 0
-        const itemCost = withPar * price
-        itemResults[item] = { perStay, stays: property.stays, subtotal, withPar, itemCost }
-        propertyTotal += withPar
-        propertyCost += itemCost
-      })
-
-      const propertyChargeToOwner = propertyCost * (1 + margin / 100)
-
-      return {
-        ...property,
-        itemResults,
-        propertyTotal,
-        propertyCost,
-        propertyChargeToOwner,
-      }
-    })
-
-    // Grand totals per item
-    const grandTotals = {}
-    activeItems.forEach((item) => {
-      let total = 0
-      let totalBeforePar = 0
-      propertyResults.forEach((pr) => {
-        total += pr.itemResults[item]?.withPar || 0
-        totalBeforePar += pr.itemResults[item]?.subtotal || 0
-      })
-      const price = unitPrices[item] || 0
-      const inStock = inventory[item] || 0
-      const toOrder = Math.max(0, total - inStock)
-      grandTotals[item] = { total, totalBeforePar, cost: total * price, inStock, toOrder, orderCost: toOrder * price }
-    })
-
-    const grandTotal = Object.values(grandTotals).reduce((sum, g) => sum + g.total, 0)
-    const grandTotalBeforePar = Object.values(grandTotals).reduce(
-      (sum, g) => sum + g.totalBeforePar,
-      0
-    )
-    const grandTotalCost = Object.values(grandTotals).reduce((sum, g) => sum + g.cost, 0)
-    const grandTotalInStock = Object.values(grandTotals).reduce((sum, g) => sum + g.inStock, 0)
-    const grandTotalToOrder = Object.values(grandTotals).reduce((sum, g) => sum + g.toOrder, 0)
-    const grandTotalOrderCost = Object.values(grandTotals).reduce((sum, g) => sum + g.orderCost, 0)
-    const grandTotalChargeToOwner = grandTotalCost * (1 + margin / 100)
-
-    return { propertyResults, grandTotals, grandTotal, grandTotalBeforePar, grandTotalCost, grandTotalChargeToOwner, grandTotalInStock, grandTotalToOrder, grandTotalOrderCost }
-  }, [properties, activeItems, parLevel, unitPrices, margin, inventory])
+  const calculations = useMemo(
+    () =>
+      buildCalculations({
+        properties,
+        activeItems,
+        parLevel,
+        unitPrices,
+        margin,
+        inventory,
+      }),
+    [properties, activeItems, parLevel, unitPrices, margin, inventory]
+  )
 
   // Save/Load scenarios
   const saveScenario = useCallback(() => {
+    const normalizedName = scenarioName.trim()
+    if (!normalizedName) return
+
     const scenario = {
       id: Date.now().toString(),
-      name: scenarioName,
+      name: normalizedName,
       date: new Date().toISOString(),
       properties,
       parLevel,
       activeItems,
       customItems,
     }
-    setSavedScenarios((prev) => [...prev, scenario])
+    setSavedScenarios((prev) => {
+      const nameKey = normalizedName.toLowerCase()
+      const withoutSameName = prev.filter((s) => s.name.trim().toLowerCase() !== nameKey)
+      return [scenario, ...withoutSameName]
+    })
   }, [scenarioName, properties, parLevel, activeItems, customItems, setSavedScenarios])
 
   const loadScenario = useCallback(
     (scenario) => {
       setProperties(scenario.properties)
-      setParLevel(scenario.parLevel)
+      setParLevelSafe(scenario.parLevel)
       setActiveItems(scenario.activeItems)
       setCustomItems(scenario.customItems || [])
       setScenarioName(scenario.name)
     },
-    [setProperties, setParLevel, setActiveItems, setCustomItems, setScenarioName]
+    [setProperties, setParLevelSafe, setActiveItems, setCustomItems, setScenarioName]
   )
 
   const deleteScenario = useCallback(
@@ -259,12 +280,12 @@ export function useCalculator() {
     (record) => {
       const snap = record.fullSnapshot
       setProperties(snap.properties)
-      setParLevel(snap.parLevel)
+      setParLevelSafe(snap.parLevel)
       setActiveItems(snap.activeItems)
       setCustomItems(snap.customItems || [])
       setScenarioName(record.scenarioName)
     },
-    [setProperties, setParLevel, setActiveItems, setCustomItems, setScenarioName]
+    [setProperties, setParLevelSafe, setActiveItems, setCustomItems, setScenarioName]
   )
 
   const deleteHistoryRecord = useCallback(
@@ -280,16 +301,16 @@ export function useCalculator() {
 
   const resetToDefaults = useCallback(() => {
     setProperties(DEFAULT_PROPERTIES)
-    setParLevel(1)
+    setParLevelSafe(1)
     setActiveItems(DEFAULT_LINEN_ITEMS)
     setCustomItems([])
     setScenarioName('Default Scenario')
-  }, [setProperties, setParLevel, setActiveItems, setCustomItems, setScenarioName])
+  }, [setProperties, setParLevelSafe, setActiveItems, setCustomItems, setScenarioName])
 
   return {
     properties,
     parLevel,
-    setParLevel,
+    setParLevel: setParLevelSafe,
     scenarioName,
     setScenarioName,
     savedScenarios,
@@ -298,16 +319,18 @@ export function useCalculator() {
     customItems,
     calculations,
     addProperty,
+    duplicateProperty,
     removeProperty,
     updateProperty,
     updatePropertyItem,
+    updateAllPropertiesItem,
     addCustomItem,
     removeCustomItem,
     toggleItem,
     unitPrices,
     updateUnitPrice,
     margin,
-    setMargin,
+    setMargin: setMarginSafe,
     inventory,
     updateInventory,
     markAsOrdered,

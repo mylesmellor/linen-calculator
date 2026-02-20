@@ -7,11 +7,15 @@ export default function Step3Quantities({
   activeItems,
   parLevel,
   updatePropertyItem,
+  updateAllPropertiesItem,
   calculations,
   onPrev,
   onNext,
 }) {
   const [expandedProperty, setExpandedProperty] = useState(properties[0]?.id || null)
+  const [bulkItem, setBulkItem] = useState(activeItems[0] || '')
+  const [bulkQty, setBulkQty] = useState(0)
+  const selectedBulkItem = activeItems.includes(bulkItem) ? bulkItem : activeItems[0] || ''
 
   const toggleExpand = (id) => {
     setExpandedProperty((prev) => (prev === id ? null : id))
@@ -37,6 +41,46 @@ export default function Step3Quantities({
           <div className="text-sm opacity-75">
             Base: {calculations.grandTotalBeforePar.toLocaleString()} items
           </div>
+        </div>
+      </div>
+
+      {/* Bulk apply tool */}
+      <div className="bg-white rounded-xl shadow-sm border-2 border-primary-200 p-5">
+        <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">
+          Apply To All Properties
+        </h3>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Item</label>
+            <select
+              value={selectedBulkItem}
+              onChange={(e) => setBulkItem(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none min-w-48"
+            >
+              {activeItems.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Quantity Per Stay</label>
+            <input
+              type="number"
+              min="0"
+              value={bulkQty}
+              onChange={(e) => setBulkQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
+              className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-center text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+            />
+          </div>
+          <button
+            onClick={() => selectedBulkItem && updateAllPropertiesItem(selectedBulkItem, bulkQty)}
+            disabled={!selectedBulkItem}
+            className="px-4 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            Apply To All
+          </button>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Package, AlertTriangle, CheckCircle, Search, ShoppingCart, Clock, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
-import { LINEN_CATEGORIES, DEFAULT_LINEN_ITEMS } from '../data/defaultData'
+import { LINEN_CATEGORIES } from '../data/defaultData'
 import Tooltip from './Tooltip'
 
 export default function InventoryPage({ activeItems, inventory, updateInventory, customItems, calculations, markAsOrdered, orderHistory, deleteOrderRecord }) {
@@ -8,8 +8,6 @@ export default function InventoryPage({ activeItems, inventory, updateInventory,
   const [showConfirm, setShowConfirm] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const { grandTotals, grandTotal, grandTotalInStock, grandTotalToOrder } = calculations
-
-  const hasInventory = grandTotalInStock > 0
 
   // Build the list of items that need ordering
   const itemsToOrder = {}

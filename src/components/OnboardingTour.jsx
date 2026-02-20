@@ -84,14 +84,14 @@ export default function OnboardingTour({ onComplete }) {
     }
   }, [isLast, onComplete])
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (!isFirst) setCurrentStep((s) => s - 1)
-  }
+  }, [isFirst])
 
-  const handleSkip = () => {
+  const handleSkip = useCallback(() => {
     setIsVisible(false)
     onComplete()
-  }
+  }, [onComplete])
 
   // Keyboard navigation
   useEffect(() => {
@@ -102,7 +102,7 @@ export default function OnboardingTour({ onComplete }) {
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [handleNext])
+  }, [handleNext, handlePrev, handleSkip])
 
   if (!isVisible) return null
 
